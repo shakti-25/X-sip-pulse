@@ -1,0 +1,42 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+    // The editor list lives in one document: config/access
+    // with one array field: editors (lowercase email addresses).
+    // Any signed-in Google account can view. Only editors can change data.
+    function access() {
+      return get(/databases/$(database)/documents/config/access).data;
+    }
+    function isEditor() {
+      return signedIn() && request.auth.token.email in access().editors;
+    }
+    function isViewer() {
+      return signedIn();
+    }
+
+    match /config/access {
+      allow read: if isViewer();
+      allow write: if false;   // change the list in the Firebase console only
+    }
+
+    match /records/{id} {
+      allow read: if isViewer();
+      allow create, update: if isEditor()
+        && request.resource.data.keys().hasOnly([
+          'code','name','reg','regDate','scheme','freq','amt','pur','person','rm','mandate',
+          'first','folio','xstatus','orderId','orderDate','orderRemark','orderStatus',
+          'fundStatus','fundRemark','refundStatus','refundDate','updatedBy','updatedAt'])
+        && request.resource.data.updatedBy == request.auth.token.email;
+      allow delete: if isEditor();
+    }
+
+    match /presence/{uid} {
+      allow read: if isViewer();
+      allow write: if isViewer() && request.auth.uid == uid;
+    }
+  }
+}
