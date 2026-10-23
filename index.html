@@ -312,7 +312,6 @@ dialog form{display:flex;flex-direction:column;max-height:90vh}
       </div>
       <div id="more-filters" hidden></div>
       <div class="count" id="f-count"></div>
-      <div class="fp-foot"><button class="btn sec" type="button" data-fa="close">Close</button><button class="btn" type="button" data-fa="apply">Apply filters</button></div>
     </div>
     <div class="panel" id="outcome"></div>
 
@@ -763,7 +762,7 @@ function renderRecFilters(){
     [["orderDate","Order Date"],["regDate","Reg. Date"],["refundDate","Refund Date"]].map(([k, l]) => '<option value="' + k + '"' + (recDraft.d.field === k ? " selected" : "") + '>' + l + '</option>').join("") + '</select></div>' +
     '<div class="field"><label for="rd-from">Date from</label><input type="date" id="rd-from" data-rd="from" value="' + esc(recDraft.d.from) + '"></div>' +
     '<div class="field"><label for="rd-to">Date to</label><input type="date" id="rd-to" data-rd="to" value="' + esc(recDraft.d.to) + '"></div>' +
-    colFiltersHTML(COLS, recDraft.f, recMode, "rf") + '<div class="rf-foot"><button class="btn sec" type="button" data-fa="close">Close</button><button class="btn" type="button" data-fa="apply">Apply filters</button></div>';
+    colFiltersHTML(COLS, recDraft.f, recMode, "rf");
 }
 function renderMoreFilters(){
   $("more-filters").innerHTML = colFiltersHTML(COLS.filter(c => !["code","name","scheme"].includes(c.k)), dashDraft.m, moreMode, "mf");
