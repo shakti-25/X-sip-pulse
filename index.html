@@ -73,6 +73,9 @@ button,input,select,textarea{font:inherit;color:inherit}
 .gb-list label{display:flex;gap:6px;align-items:center;font-size:13px;white-space:nowrap}
 @media (max-width:860px){#gb-wrap{grid-template-columns:1fr}}
 .icon-btn svg{flex:none}
+.fp-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.fp-foot{display:flex;justify-content:flex-end;gap:8px;margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
+#rec-filters .rf-foot{grid-column:1/-1;display:flex;justify-content:flex-end;gap:8px;padding-top:6px;border-top:1px solid var(--line)}
 .ms{position:relative}
 .ms.open{z-index:40}
 .ms-btn{width:100%;display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line);background:var(--panel);border-radius:2px;cursor:pointer;text-align:left;min-height:38px}
@@ -299,7 +302,7 @@ dialog form{display:flex;flex-direction:column;max-height:90vh}
   <section id="tab-dash" class="stack">
     <div class="tools"><h2 style="margin:0">Dashboard</h2><button class="btn sec icon-btn" id="dash-filter-btn" type="button" aria-expanded="false" aria-controls="filters-panel"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h18l-7 8.5V19l-4 2v-8.5z"/></svg> Filters <span class="badge" id="dash-badge" hidden></span></button></div>
     <div class="panel" id="filters-panel" hidden>
-      <div class="fp-head"><h3 style="margin:0">Filters</h3><button class="btn sec" id="f-clear" type="button">Clear filters</button></div>
+      <div class="fp-head"><h3 style="margin:0">Filters</h3><div class="fp-actions"><button class="btn sec" id="f-clear" type="button">Clear filters</button><button class="btn sec" type="button" data-fa="close">Close</button><button class="btn" type="button" data-fa="apply">Apply filters</button></div></div>
       <div class="filters" id="dash-main"></div>
       <div class="filters2">
         <div class="field"><label for="d-field">Date column</label><select id="d-field"><option value="orderDate">Order Date</option><option value="regDate">Reg. Date</option><option value="refundDate">Refund Date</option></select></div>
@@ -309,6 +312,7 @@ dialog form{display:flex;flex-direction:column;max-height:90vh}
       </div>
       <div id="more-filters" hidden></div>
       <div class="count" id="f-count"></div>
+      <div class="fp-foot"><button class="btn sec" type="button" data-fa="close">Close</button><button class="btn" type="button" data-fa="apply">Apply filters</button></div>
     </div>
     <div class="panel" id="outcome"></div>
 
@@ -418,6 +422,7 @@ let fs = null, auth = null, col = null, cu = null, canWrite = false, saving = fa
 const remote = new Map(), idToKey = new Map();
 let persistChain = Promise.resolve(), unsubs = [], hb = null, presTimer = null, presDocs = [], liveOk = true;
 let plan = null, parsed = null;
+const recDraft = {f:{}, d:{field:"orderDate", from:"", to:""}}, dashDraft = {f:{}, m:{}, d:{field:"orderDate", from:"", to:""}};
 const recFilters = {}, recMode = {}, moreFilters = {}, moreMode = {}, dash = {field:"orderDate", from:"", to:""}, recDate = {field:"orderDate", from:"", to:""};
 
 const $ = id => document.getElementById(id);
@@ -752,16 +757,16 @@ function colFiltersHTML(cols, st, mode, pre){
     return '<div class="field ms" data-k="' + c.k + '" data-scope="' + scope + '"><label for="' + id + '">' + esc(c.l) + '</label><button type="button" class="ms-btn' + (arr.length ? " on" : "") + '" id="' + id + '" aria-haspopup="true" aria-expanded="false"><span class="ms-txt">' + esc(msLabel(c.k, arr)) + '</span><span aria-hidden="true">▾</span></button><div class="ms-pop" hidden></div></div>';
   }).join("");
 }
-function renderDashMain(){ $("dash-main").innerHTML = colFiltersHTML(COLS.filter(c => ["code","name","scheme"].includes(c.k)), filters, null, "df"); }
+function renderDashMain(){ $("dash-main").innerHTML = colFiltersHTML(COLS.filter(c => ["code","name","scheme"].includes(c.k)), dashDraft.f, null, "df"); }
 function renderRecFilters(){
-  $("rec-filters").innerHTML = '<div class="rf-head"><h3 style="margin:0">Filters</h3><div class="rf-right"><label class="hl"><input type="checkbox" id="hl-done-f"' + (hlDone ? " checked" : "") + '>Highlight purchase done</label><button class="btn sec" type="button" id="rf-clear">Clear filters</button></div></div>' + '<div class="field"><label for="rd-field">Date column</label><select id="rd-field" data-rd="field">' +
-    [["orderDate","Order Date"],["regDate","Reg. Date"],["refundDate","Refund Date"]].map(([k, l]) => '<option value="' + k + '"' + (recDate.field === k ? " selected" : "") + '>' + l + '</option>').join("") + '</select></div>' +
-    '<div class="field"><label for="rd-from">Date from</label><input type="date" id="rd-from" data-rd="from" value="' + esc(recDate.from) + '"></div>' +
-    '<div class="field"><label for="rd-to">Date to</label><input type="date" id="rd-to" data-rd="to" value="' + esc(recDate.to) + '"></div>' +
-    colFiltersHTML(COLS, recFilters, recMode, "rf");
+  $("rec-filters").innerHTML = '<div class="rf-head"><h3 style="margin:0">Filters</h3><div class="rf-right"><label class="hl"><input type="checkbox" id="hl-done-f"' + (hlDone ? " checked" : "") + '>Highlight purchase done</label><button class="btn sec" type="button" id="rf-clear">Clear filters</button><button class="btn sec" type="button" data-fa="close">Close</button><button class="btn" type="button" data-fa="apply">Apply filters</button></div></div>' + '<div class="field"><label for="rd-field">Date column</label><select id="rd-field" data-rd="field">' +
+    [["orderDate","Order Date"],["regDate","Reg. Date"],["refundDate","Refund Date"]].map(([k, l]) => '<option value="' + k + '"' + (recDraft.d.field === k ? " selected" : "") + '>' + l + '</option>').join("") + '</select></div>' +
+    '<div class="field"><label for="rd-from">Date from</label><input type="date" id="rd-from" data-rd="from" value="' + esc(recDraft.d.from) + '"></div>' +
+    '<div class="field"><label for="rd-to">Date to</label><input type="date" id="rd-to" data-rd="to" value="' + esc(recDraft.d.to) + '"></div>' +
+    colFiltersHTML(COLS, recDraft.f, recMode, "rf") + '<div class="rf-foot"><button class="btn sec" type="button" data-fa="close">Close</button><button class="btn" type="button" data-fa="apply">Apply filters</button></div>';
 }
 function renderMoreFilters(){
-  $("more-filters").innerHTML = colFiltersHTML(COLS.filter(c => !["code","name","scheme"].includes(c.k)), moreFilters, moreMode, "mf");
+  $("more-filters").innerHTML = colFiltersHTML(COLS.filter(c => !["code","name","scheme"].includes(c.k)), dashDraft.m, moreMode, "mf");
 }
 function refreshAll(){
   if (!$("rec-filters").hidden && !$("rec-filters").contains(document.activeElement)) renderRecFilters();
@@ -793,9 +798,9 @@ $("imp-toggle").addEventListener("click", () => {
 
 /* ---------- Filters ---------- */
 $("f-clear").addEventListener("click", () => {
-  ["d-from","d-to"].forEach(id => $(id).value = "");
-  Object.keys(filters).forEach(k => delete filters[k]); dash.from = dash.to = "";
-  Object.keys(moreFilters).forEach(k => delete moreFilters[k]);
+  [filters, moreFilters, dashDraft.f, dashDraft.m].forEach(o => Object.keys(o).forEach(k => delete o[k]));
+  dash.from = dash.to = dashDraft.d.from = dashDraft.d.to = "";
+  $("d-from").value = ""; $("d-to").value = "";
   renderDashMain(); if (!$("more-filters").hidden) renderMoreFilters();
   sumPage = 0; renderDashboard();
 });
@@ -987,9 +992,9 @@ const drop = $("drop");
 ["dragleave","drop"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove("over"); }));
 drop.addEventListener("drop", e => handleFile(e.dataTransfer.files[0]));
 
-$("d-field").addEventListener("change", e => { dash.field = e.target.value; renderDashboard(); });
-$("d-from").addEventListener("input", e => { dash.from = e.target.value; renderDashboard(); });
-$("d-to").addEventListener("input", e => { dash.to = e.target.value; renderDashboard(); });
+$("d-field").addEventListener("change", e => { dashDraft.d.field = e.target.value; });
+$("d-from").addEventListener("input", e => { dashDraft.d.from = e.target.value; });
+$("d-to").addEventListener("input", e => { dashDraft.d.to = e.target.value; });
 $("more-btn").addEventListener("click", () => {
   const p = $("more-filters"); p.hidden = !p.hidden; $("more-btn").setAttribute("aria-expanded", String(!p.hidden));
   if (!p.hidden) renderMoreFilters();
@@ -1073,9 +1078,9 @@ document.addEventListener("click", e => { if (!e.target.closest("#exp-wrap")) cl
 document.addEventListener("keydown", e => { if (e.key === "Escape") closeExpMenu(); });
 /* ---------- Multi-select filters ---------- */
 const MS_SCOPE = {
-  rec: {st: recFilters, after: () => { recPage = 0; renderRecords(); }},
-  more: {st: moreFilters, after: () => renderDashboard()},
-  dash: {st: filters, after: () => renderDashboard()}
+  rec: {st: recDraft.f, after: () => {}},
+  more: {st: dashDraft.m, after: () => {}},
+  dash: {st: dashDraft.f, after: () => {}}
 };
 function msOptions(k){
   const m = new Map(); let blanks = 0;
@@ -1135,22 +1140,45 @@ document.addEventListener("change", e => {
   sc.st[k] = [...s]; updateMs(el); sc.after();
 });
 document.addEventListener("keydown", e => { if (e.key === "Escape") closeMs(); });
-$("dash-filter-btn").addEventListener("click", () => {
-  const p = $("filters-panel"); p.hidden = !p.hidden; $("dash-filter-btn").setAttribute("aria-expanded", String(!p.hidden));
+const cloneSt = st => { const o = {}; Object.keys(st).forEach(k => { if (Array.isArray(st[k]) && st[k].length) o[k] = st[k].slice(); }); return o; };
+function setSt(target, src){ Object.keys(target).forEach(k => delete target[k]); Object.assign(target, cloneSt(src)); }
+function openDashPanel(){
+  setSt(dashDraft.f, filters); setSt(dashDraft.m, moreFilters); Object.assign(dashDraft.d, dash);
+  $("filters-panel").hidden = false; $("dash-filter-btn").setAttribute("aria-expanded", "true");
+  $("d-field").value = dashDraft.d.field; $("d-from").value = dashDraft.d.from; $("d-to").value = dashDraft.d.to;
+  renderDashMain(); if (!$("more-filters").hidden) renderMoreFilters();
+}
+function closeDashPanel(){ closeMs(); $("filters-panel").hidden = true; $("dash-filter-btn").setAttribute("aria-expanded", "false"); }
+function applyDash(){
+  setSt(filters, dashDraft.f); setSt(moreFilters, dashDraft.m); Object.assign(dash, dashDraft.d);
+  sumPage = 0; renderDashboard(); closeDashPanel();
+}
+function openRecPanel(){
+  setSt(recDraft.f, recFilters); Object.assign(recDraft.d, recDate);
+  $("rec-filters").hidden = false; $("rec-filter-btn").setAttribute("aria-expanded", "true"); renderRecFilters();
+}
+function closeRecPanel(){ closeMs(); $("rec-filters").hidden = true; $("rec-filter-btn").setAttribute("aria-expanded", "false"); }
+function applyRec(){
+  setSt(recFilters, recDraft.f); Object.assign(recDate, recDraft.d);
+  recPage = 0; renderRecords(); closeRecPanel();
+}
+$("dash-filter-btn").addEventListener("click", () => { $("filters-panel").hidden ? openDashPanel() : closeDashPanel(); });
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-fa]"); if (!b) return;
+  const rec = !!b.closest("#rec-filters");
+  if (b.dataset.fa === "apply") rec ? applyRec() : applyDash();
+  else rec ? closeRecPanel() : closeDashPanel();
 });
-$("rec-filter-btn").addEventListener("click", () => {
-  const p = $("rec-filters"); p.hidden = !p.hidden; $("rec-filter-btn").setAttribute("aria-expanded", String(!p.hidden));
-  if (!p.hidden) renderRecFilters();
-});
+$("rec-filter-btn").addEventListener("click", () => { $("rec-filters").hidden ? openRecPanel() : closeRecPanel(); });
 $("rec-filters").addEventListener("input", e => {
   const rd = e.target.dataset.rd;
-  if (rd){ recDate[rd] = e.target.value; recPage = 0; renderRecords(); return; }
+  if (rd){ recDraft.d[rd] = e.target.value; return; }
   const k = e.target.dataset.rf; if (!k) return;
   recFilters[k] = e.target.value; recPage = 0; renderRecords();
 });
 $("rec-filters").addEventListener("click", e => {
   if (e.target.id !== "rf-clear") return;
-  Object.keys(recFilters).forEach(k => delete recFilters[k]); recDate.from = recDate.to = ""; renderRecFilters(); recPage = 0; renderRecords();
+  [recFilters, recDraft.f].forEach(o => Object.keys(o).forEach(k => delete o[k])); recDate.from = recDate.to = recDraft.d.from = recDraft.d.to = ""; renderRecFilters(); recPage = 0; renderRecords();
 });
 renderDashMain();
 showTab("dash");
