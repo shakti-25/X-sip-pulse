@@ -73,6 +73,18 @@ button,input,select,textarea{font:inherit;color:inherit}
 .gb-list label{display:flex;gap:6px;align-items:center;font-size:13px;white-space:nowrap}
 @media (max-width:860px){#gb-wrap{grid-template-columns:1fr}}
 .icon-btn svg{flex:none}
+.ms{position:relative}
+.ms.open{z-index:40}
+.ms-btn{width:100%;display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line);background:var(--panel);border-radius:2px;cursor:pointer;text-align:left;min-height:38px}
+.ms-btn .ms-txt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ms-btn.on{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.ms-pop{position:absolute;left:0;top:calc(100% + 4px);min-width:100%;width:310px;max-width:92vw;background:var(--panel);border:1px solid var(--line);border-radius:2px;box-shadow:0 6px 20px rgba(0,0,0,.28)}
+.ms-pop[hidden]{display:none}
+.ms-acts{display:flex;justify-content:space-between;padding:6px 14px 0}
+.ms-list label{cursor:pointer}
+.ms-list label small{margin-left:auto;color:var(--muted)}
+.ms-list .ms-v{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media (max-width:560px){.ms-pop{position:fixed;left:12px!important;right:12px!important;width:auto;top:auto;bottom:calc(12px + env(safe-area-inset-bottom,0px))}}
 .top-right{display:flex;align-items:center;gap:18px}
 .live{display:flex;align-items:center;gap:8px;font-size:13px}
 .live[hidden],.acct[hidden]{display:none}
@@ -288,11 +300,7 @@ dialog form{display:flex;flex-direction:column;max-height:90vh}
     <div class="tools"><h2 style="margin:0">Dashboard</h2><button class="btn sec icon-btn" id="dash-filter-btn" type="button" aria-expanded="false" aria-controls="filters-panel"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h18l-7 8.5V19l-4 2v-8.5z"/></svg> Filters <span class="badge" id="dash-badge" hidden></span></button></div>
     <div class="panel" id="filters-panel" hidden>
       <div class="fp-head"><h3 style="margin:0">Filters</h3><button class="btn sec" id="f-clear" type="button">Clear filters</button></div>
-      <div class="filters">
-        <div class="field"><label for="f-code">Client Code</label><input id="f-code" list="dl-code" autocomplete="off" placeholder="All client codes"><datalist id="dl-code"></datalist></div>
-        <div class="field"><label for="f-name">Client Name</label><input id="f-name" list="dl-name" autocomplete="off" placeholder="All client names"><datalist id="dl-name"></datalist></div>
-        <div class="field"><label for="f-scheme">Scheme Name</label><input id="f-scheme" list="dl-scheme" autocomplete="off" placeholder="All schemes"><datalist id="dl-scheme"></datalist></div>
-      </div>
+      <div class="filters" id="dash-main"></div>
       <div class="filters2">
         <div class="field"><label for="d-field">Date column</label><select id="d-field"><option value="orderDate">Order Date</option><option value="regDate">Reg. Date</option><option value="refundDate">Refund Date</option></select></div>
         <div class="field"><label for="d-from">Date from</label><input type="date" id="d-from"></div>
@@ -403,7 +411,7 @@ function visibleCols(){ const v = COLS.filter(c => !hiddenCols.has(c.k)); return
 
 /* ---------- State ---------- */
 const store = new Map();            // key -> record
-const filters = {code:"", name:"", scheme:""};
+const filters = {};
 let tab = "dash", recQuery = "", recPage = 0, sumPage = 0, sumSort = {col:"code", dir:1};
 const PAGE = 50, SUMPAGE = 25;
 let fs = null, auth = null, col = null, cu = null, canWrite = false, saving = false, loaded = false;
@@ -446,12 +454,7 @@ function tone(v){
 }
 
 function applyFilters(rows){
-  const c = filters.code.trim().toLowerCase(), n = filters.name.trim().toLowerCase(), s = filters.scheme.trim().toLowerCase();
-  return rows.filter(r =>
-    (!c || String(r.code).toLowerCase().includes(c)) &&
-    (!n || String(r.name).toLowerCase().includes(n)) &&
-    (!s || String(r.scheme).toLowerCase().includes(s)) &&
-    dateOk(r) && colMatch(r, moreFilters, moreMode));
+  return rows.filter(r => colMatch(r, filters) && dateOk(r) && colMatch(r, moreFilters));
 }
 
 /* ---------- Firebase: sign-in, live data, presence ---------- */
@@ -621,12 +624,6 @@ async function init(){
 
 /* ---------- Rendering: dashboard ---------- */
 function uniq(rows, k){ return [...new Set(rows.map(r => String(r[k]).trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, undefined, {numeric:true})); }
-function fillLists(){
-  const rows = allRecords();
-  [["dl-code","code"],["dl-name","name"],["dl-scheme","scheme"]].forEach(([id, k]) => {
-    $(id).innerHTML = uniq(rows, k).slice(0, 600).map(v => '<option value="' + esc(v) + '">').join("");
-  });
-}
 
 function renderOutcome(rows){
   const t = rows.length;
@@ -703,13 +700,12 @@ function renderRecords(){
   $("add-rec").hidden = !canWrite;
 }
 
-function colMatch(r, st, mode){
+function colMatch(r, st){
   for (const k of KEYS){
-    const v = st[k]; if (!v) continue;
+    const v = st[k]; if (!v || !v.length) continue;
     const cell = String(r[k]).trim();
-    if (v === "__blank__"){ if (cell) return false; continue; }
-    if (mode[k] === "eq"){ if (cell !== v) return false; }
-    else if (!cell.toLowerCase().includes(String(v).trim().toLowerCase())) return false;
+    if (cell === ""){ if (!v.includes("__blank__")) return false; }
+    else if (!v.includes(cell)) return false;
   }
   return true;
 }
@@ -740,26 +736,23 @@ function filteredRecs(){
   return allRecords().filter(r => (!q || KEYS.some(k => String(r[k]).toLowerCase().includes(q))) && recMatch(r));
 }
 function updateBadges(){
-  const mc = Object.values(moreFilters).filter(v => v && String(v).trim()).length;
-  const d = ["code","name","scheme"].filter(k => filters[k].trim()).length + ((dash.from || dash.to) ? 1 : 0) + mc;
-  const r = Object.values(recFilters).filter(v => v && String(v).trim()).length + ((recDate.from || recDate.to) ? 1 : 0);
+  const cnt = st => Object.values(st).filter(v => v && v.length).length;
+  const mc = cnt(moreFilters);
+  const d = cnt(filters) + ((dash.from || dash.to) ? 1 : 0) + mc;
+  const r = cnt(recFilters) + ((recDate.from || recDate.to) ? 1 : 0);
   [["dash-badge", d], ["rec-badge", r], ["more-badge", mc]].forEach(([id, n]) => { const el = $(id); el.textContent = n; el.hidden = !n; });
 }
+const BLANK = "__blank__";
+const blankLabel = k => (k === "fundStatus" || k === "refundStatus") ? "None (blank)" : "(blank)";
+function msLabel(k, arr){ if (!arr || !arr.length) return "All"; if (arr.length === 1) return arr[0] === BLANK ? blankLabel(k) : arr[0]; return arr.length + " selected"; }
 function colFiltersHTML(cols, st, mode, pre){
-  const rows = allRecords();
+  const scope = pre === "rf" ? "rec" : pre === "mf" ? "more" : "dash";
   return cols.map(c => {
-    const vals = uniq(rows, c.k), cur = st[c.k] || "", hasBlank = rows.some(r => !String(r[c.k]).trim());
-    if (vals.length <= 300){
-      mode[c.k] = "eq";
-      if (cur && cur !== "__blank__" && !vals.includes(cur)) vals.unshift(cur);
-      const o = '<option value="">All</option>' + (hasBlank ? '<option value="__blank__"' + (cur === "__blank__" ? " selected" : "") + '>' + (c.k === "fundStatus" || c.k === "refundStatus" ? "None (blank)" : "(blank)") + '</option>' : "") +
-        vals.map(v => '<option value="' + esc(v) + '"' + (v === cur ? " selected" : "") + '>' + esc(v) + '</option>').join("");
-      return '<div class="field"><label for="' + pre + '-' + c.k + '">' + esc(c.l) + '</label><select id="' + pre + '-' + c.k + '" data-rf="' + c.k + '">' + o + '</select></div>';
-    }
-    mode[c.k] = "has";
-    return '<div class="field"><label for="' + pre + '-' + c.k + '">' + esc(c.l) + '</label><input id="' + pre + '-' + c.k + '" data-rf="' + c.k + '" list="' + pre + 'dl-' + c.k + '" autocomplete="off" value="' + esc(cur) + '" placeholder="Type or pick a value"><datalist id="' + pre + 'dl-' + c.k + '">' + vals.slice(0, 500).map(v => '<option value="' + esc(v) + '">').join("") + '</datalist></div>';
+    const arr = st[c.k] || [], id = "ms-" + scope + "-" + c.k;
+    return '<div class="field ms" data-k="' + c.k + '" data-scope="' + scope + '"><label for="' + id + '">' + esc(c.l) + '</label><button type="button" class="ms-btn' + (arr.length ? " on" : "") + '" id="' + id + '" aria-haspopup="true" aria-expanded="false"><span class="ms-txt">' + esc(msLabel(c.k, arr)) + '</span><span aria-hidden="true">▾</span></button><div class="ms-pop" hidden></div></div>';
   }).join("");
 }
+function renderDashMain(){ $("dash-main").innerHTML = colFiltersHTML(COLS.filter(c => ["code","name","scheme"].includes(c.k)), filters, null, "df"); }
 function renderRecFilters(){
   $("rec-filters").innerHTML = '<div class="rf-head"><h3 style="margin:0">Filters</h3><div class="rf-right"><label class="hl"><input type="checkbox" id="hl-done-f"' + (hlDone ? " checked" : "") + '>Highlight purchase done</label><button class="btn sec" type="button" id="rf-clear">Clear filters</button></div></div>' + '<div class="field"><label for="rd-field">Date column</label><select id="rd-field" data-rd="field">' +
     [["orderDate","Order Date"],["regDate","Reg. Date"],["refundDate","Refund Date"]].map(([k, l]) => '<option value="' + k + '"' + (recDate.field === k ? " selected" : "") + '>' + l + '</option>').join("") + '</select></div>' +
@@ -773,7 +766,7 @@ function renderMoreFilters(){
 function refreshAll(){
   if (!$("rec-filters").hidden && !$("rec-filters").contains(document.activeElement)) renderRecFilters();
   if (!$("more-filters").hidden && !$("more-filters").contains(document.activeElement)) renderMoreFilters();
-  fillLists(); renderDashboard(); renderRecords();
+  renderDashboard(); renderRecords();
   if (plan) renderImport();
   $("imp-toggle").hidden = !canWrite;
   if (!canWrite) $("imp-area").hidden = true;
@@ -799,12 +792,11 @@ $("imp-toggle").addEventListener("click", () => {
 });
 
 /* ---------- Filters ---------- */
-[["f-code","code"],["f-name","name"],["f-scheme","scheme"]].forEach(([id, k]) => $(id).addEventListener("input", e => { filters[k] = e.target.value; sumPage = 0; renderDashboard(); }));
 $("f-clear").addEventListener("click", () => {
-  ["f-code","f-name","f-scheme","d-from","d-to"].forEach(id => $(id).value = "");
-  filters.code = filters.name = filters.scheme = ""; dash.from = dash.to = "";
+  ["d-from","d-to"].forEach(id => $(id).value = "");
+  Object.keys(filters).forEach(k => delete filters[k]); dash.from = dash.to = "";
   Object.keys(moreFilters).forEach(k => delete moreFilters[k]);
-  if (!$("more-filters").hidden) renderMoreFilters();
+  renderDashMain(); if (!$("more-filters").hidden) renderMoreFilters();
   sumPage = 0; renderDashboard();
 });
 $("rec-pager").addEventListener("click", e => { const g = e.target.dataset.pg; if (!g) return; recPage += g === "next" ? 1 : -1; renderRecords(); });
@@ -1079,6 +1071,70 @@ $("exp-menu").addEventListener("click", e => {
 });
 document.addEventListener("click", e => { if (!e.target.closest("#exp-wrap")) closeExpMenu(); });
 document.addEventListener("keydown", e => { if (e.key === "Escape") closeExpMenu(); });
+/* ---------- Multi-select filters ---------- */
+const MS_SCOPE = {
+  rec: {st: recFilters, after: () => { recPage = 0; renderRecords(); }},
+  more: {st: moreFilters, after: () => renderDashboard()},
+  dash: {st: filters, after: () => renderDashboard()}
+};
+function msOptions(k){
+  const m = new Map(); let blanks = 0;
+  allRecords().forEach(r => { const v = String(r[k]).trim(); if (!v) blanks++; else m.set(v, (m.get(v) || 0) + 1); });
+  const list = [...m.entries()].sort((a, b) => a[0].localeCompare(b[0], undefined, {numeric:true}));
+  if (blanks) list.unshift([BLANK, blanks]);
+  return list;
+}
+function updateMs(el){
+  const k = el.dataset.k, arr = MS_SCOPE[el.dataset.scope].st[k] || [], b = el.querySelector(".ms-btn");
+  b.querySelector(".ms-txt").textContent = msLabel(k, arr); b.classList.toggle("on", arr.length > 0);
+  const sum = el.querySelector(".ms-sum"); if (sum) sum.textContent = arr.length ? arr.length + " selected" : "Nothing selected (All)";
+}
+function renderMsList(el){
+  const k = el.dataset.k, sel = new Set(MS_SCOPE[el.dataset.scope].st[k] || []);
+  const q = el.querySelector(".ms-q").value.trim().toLowerCase();
+  const all = msOptions(k).filter(([v]) => !q || (v === BLANK ? blankLabel(k) : v).toLowerCase().includes(q));
+  el._shown = all.map(x => x[0]);
+  el.querySelector(".ms-list").innerHTML = (all.slice(0, 300).map(([v, n]) =>
+    '<label><input type="checkbox" value="' + esc(v) + '"' + (sel.has(v) ? " checked" : "") + '> <span class="ms-v">' + esc(v === BLANK ? blankLabel(k) : v) + '</span><small>' + fmtInt(n) + '</small></label>').join("") || '<div class="pop-none">No matching values</div>') +
+    (all.length > 300 ? '<div class="note">Showing the first 300 of ' + fmtInt(all.length) + ' values. Type to narrow the list.</div>' : "");
+  updateMs(el);
+}
+function closeMs(){
+  document.querySelectorAll(".ms.open").forEach(el => { el.classList.remove("open"); el.querySelector(".ms-pop").hidden = true; el.querySelector(".ms-btn").setAttribute("aria-expanded", "false"); });
+}
+function openMs(el){
+  closeMs();
+  const pop = el.querySelector(".ms-pop");
+  pop.innerHTML = '<div class="pop-s"><input type="search" class="ms-q" placeholder="Search values" autocomplete="off" aria-label="Search values"></div>' +
+    '<div class="ms-acts"><button type="button" class="link" data-ms-act="all">Select all shown</button><button type="button" class="link" data-ms-act="clear">Clear</button></div>' +
+    '<div class="pop-list ms-list"></div><div class="pop-f"><span class="note ms-sum"></span><button class="btn" type="button" data-ms-act="done">Done</button></div>';
+  pop.style.left = ""; pop.style.right = "";
+  pop.hidden = false; el.classList.add("open"); el.querySelector(".ms-btn").setAttribute("aria-expanded", "true");
+  renderMsList(el);
+  const r = pop.getBoundingClientRect();
+  if (r.right > window.innerWidth - 8){ pop.style.left = "auto"; pop.style.right = "0"; }
+  pop.querySelector(".ms-q").focus();
+}
+document.addEventListener("click", e => {
+  const el = e.target.closest(".ms");
+  if (!el){ closeMs(); return; }
+  const btn = e.target.closest(".ms-btn");
+  if (btn){ el.classList.contains("open") ? closeMs() : openMs(el); return; }
+  const act = e.target.dataset.msAct; if (!act) return;
+  const k = el.dataset.k, sc = MS_SCOPE[el.dataset.scope];
+  if (act === "done"){ closeMs(); return; }
+  if (act === "clear") sc.st[k] = [];
+  if (act === "all"){ const s = new Set(sc.st[k] || []); (el._shown || []).forEach(v => s.add(v)); sc.st[k] = [...s]; }
+  renderMsList(el); sc.after();
+});
+document.addEventListener("input", e => { if (e.target.classList && e.target.classList.contains("ms-q")) renderMsList(e.target.closest(".ms")); });
+document.addEventListener("change", e => {
+  if (!e.target.matches || !e.target.matches(".ms-list input")) return;
+  const el = e.target.closest(".ms"), k = el.dataset.k, sc = MS_SCOPE[el.dataset.scope];
+  const s = new Set(sc.st[k] || []); if (e.target.checked) s.add(e.target.value); else s.delete(e.target.value);
+  sc.st[k] = [...s]; updateMs(el); sc.after();
+});
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeMs(); });
 $("dash-filter-btn").addEventListener("click", () => {
   const p = $("filters-panel"); p.hidden = !p.hidden; $("dash-filter-btn").setAttribute("aria-expanded", String(!p.hidden));
 });
@@ -1096,6 +1152,7 @@ $("rec-filters").addEventListener("click", e => {
   if (e.target.id !== "rf-clear") return;
   Object.keys(recFilters).forEach(k => delete recFilters[k]); recDate.from = recDate.to = ""; renderRecFilters(); recPage = 0; renderRecords();
 });
+renderDashMain();
 showTab("dash");
 init();
 </script>
